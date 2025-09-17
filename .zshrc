@@ -104,13 +104,13 @@ source $ZSH/oh-my-zsh.sh
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 
-source ~/.bash/env
-source ~/.bash/config
-source ~/.bash/aliases
-source ~/.bash/completions
-source ~/.bash/paths
-source ~/.bash/functions
-source ~/.bash/exports
+source ~/.zsh/env
+source ~/.zsh/config
+source ~/.zsh/aliases
+source ~/.zsh/completions
+source ~/.zsh/paths
+source ~/.zsh/functions
+source ~/.zsh/exports
 
 clean_nvim_open_history() {
     # Write current history to file
