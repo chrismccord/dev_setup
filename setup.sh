@@ -258,13 +258,31 @@ set_default_shell() {
         print_status "Setting zsh as default shell..."
 
         # Add zsh to /etc/shells if not already there
-        if ! grep -q "$(which zsh)" /etc/shells; then
-            echo "$(which zsh)" | sudo tee -a /etc/shells
+        local zsh_path=$(which zsh)
+        if ! grep -q "$zsh_path" /etc/shells; then
+            echo "$zsh_path" | sudo tee -a /etc/shells
         fi
 
-        # Change default shell
-        chsh -s "$(which zsh)"
-        print_success "Default shell set to zsh (restart terminal to take effect)"
+        # Try different methods to change shell
+        if command_exists chsh; then
+            print_status "Attempting to change shell with chsh..."
+            if chsh -s "$zsh_path" 2>/dev/null; then
+                print_success "Default shell set to zsh (restart terminal to take effect)"
+            else
+                print_warning "chsh failed. Trying alternative method..."
+                # Try with sudo
+                if sudo chsh -s "$zsh_path" "$USER" 2>/dev/null; then
+                    print_success "Default shell set to zsh with sudo (restart terminal to take effect)"
+                else
+                    print_warning "Could not change default shell automatically."
+                    print_status "Please run manually: chsh -s $zsh_path"
+                    print_status "Or add this to your shell profile: export SHELL=$zsh_path"
+                fi
+            fi
+        else
+            print_warning "chsh command not found. Please change shell manually:"
+            print_status "Run: chsh -s $zsh_path"
+        fi
     else
         print_success "zsh is already the default shell"
     fi
