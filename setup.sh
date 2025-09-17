@@ -266,17 +266,18 @@ set_default_shell() {
         # Try different methods to change shell
         if command_exists chsh; then
             print_status "Attempting to change shell with chsh..."
-            if chsh -s "$zsh_path" 2>/dev/null; then
+            # Use timeout to prevent hanging and redirect all input/output
+            if timeout 5 bash -c "echo '' | chsh -s '$zsh_path'" >/dev/null 2>&1; then
                 print_success "Default shell set to zsh (restart terminal to take effect)"
             else
-                print_warning "chsh failed. Trying alternative method..."
-                # Try with sudo
-                if sudo chsh -s "$zsh_path" "$USER" 2>/dev/null; then
+                print_warning "chsh failed or timed out. Trying with sudo..."
+                # Try with sudo and timeout
+                if timeout 5 sudo chsh -s "$zsh_path" "$USER" >/dev/null 2>&1; then
                     print_success "Default shell set to zsh with sudo (restart terminal to take effect)"
                 else
                     print_warning "Could not change default shell automatically."
-                    print_status "Please run manually: chsh -s $zsh_path"
-                    print_status "Or add this to your shell profile: export SHELL=$zsh_path"
+                    print_status "To change manually, run: chsh -s $zsh_path"
+                    print_status "Then restart your terminal or run: exec zsh"
                 fi
             fi
         else
