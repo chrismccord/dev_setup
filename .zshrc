@@ -1,6 +1,6 @@
 # ~/.zshrc
 # new machine setup: TODO install zsh instructions
-# 
+#
 # If you come from bash you might have to change your $PATH.
 # export PATH=$HOME/bin:/usr/local/bin:$PATH
 
@@ -104,49 +104,71 @@ source $ZSH/oh-my-zsh.sh
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 
-source ~/.zsh/env
-source ~/.zsh/config
-source ~/.zsh/aliases
-source ~/.zsh/completions
-source ~/.zsh/paths
-source ~/.zsh/functions
-source ~/.zsh/exports
+
+[ -f ~/.zsh/env ] && source ~/.zsh/env
+[ -f ~/.zsh/config ] && source ~/.zsh/config
+[ -f ~/.zsh/aliases ] && source ~/.zsh/aliases
+[ -f ~/.zsh/completions ] && source ~/.zsh/completions
+[ -f ~/.zsh/paths ] && source ~/.zsh/paths
+[ -f ~/.zsh/functions ] && source ~/.zsh/functions
+[ -f ~/.zsh/exports ] && source ~/.zsh/exports
 
 clean_nvim_open_history() {
     # Write current history to file
     fc -W
-    
+
     # Check if last line contains tmux_nvim_open
     if tail -1 ~/.zsh_history | grep -q "tmux_nvim_open "; then
         # Remove last line
         sed -i '' '$d' ~/.zsh_history
-        
+
         # Check for 'q' - zsh history format includes timestamp like ": 1234567890:0;q"
         if tail -1 ~/.zsh_history | grep -qE "(^|;)q$"; then
             # Remove that too
             sed -i '' '$d' ~/.zsh_history
         fi
     fi
-    
+
     # Reload history
     fc -R
 }
 
 # Updated tmux_nvim_open function
 tmux_nvim_open() {
-    clean_nvim_open_history
-    local file="$1"
-    local line="${2:-1}"
-    
-    local nvim_window=$(tmux list-windows -F '#{window_index}: #{window_name}' | grep -i 'nvim' | head -1 | cut -d: -f1)
-    
-    if [ -n "$nvim_window" ]; then
-        tmux select-window -t "$nvim_window"
-        tmux send-keys -t "${nvim_window}.0" Escape ":e $file" C-m "${line}G"
+    local input="$1"
+    local explicit_line="${2:-}"
+
+    # Remove trailing colons and parse file:line format
+    input="${input%:}"
+    if echo "$input" | grep -qE '^.+:[0-9]+:?[0-9]*$'; then
+        file=$(echo "$input" | sed -E 's/:([0-9]+):?[0-9]*$//')
+        line=$(echo "$input" | sed -E 's/^.+:([0-9]+):?[0-9]*$/\1/')
     else
-        tmux new-window "nvim '$file' +$line"
+        file="$input"
+        line="${explicit_line:-1}"
     fi
-    clean_nvim_open_history
+
+    # Find first window.pane running nvim
+    local nvim_target=$(tmux list-panes -a -F '#{window_index}.#{pane_index} #{pane_current_command}' | grep 'nvim$' | head -1 | awk '{print $1}')
+
+    if [ -n "$nvim_target" ]; then
+        # Switch to that window and pane
+        tmux select-window -t "${nvim_target%%.*}"
+        tmux select-pane -t "$nvim_target"
+
+        # Send the commands
+        tmux send-keys -t "$nvim_target" Escape ":e ${file}" C-m
+        if [ "$line" != "1" ] && [ -n "$line" ]; then
+            tmux send-keys -t "$nvim_target" ":${line}" C-m
+        fi
+    else
+        # No nvim found, create a new window
+        if [ "$line" != "1" ] && [ -n "$line" ]; then
+            tmux new-window "nvim '$file' +$line"
+        else
+            tmux new-window "nvim '$file'"
+        fi
+    fi
 }
 
 # setopt transient_rprompt # don't show command modes on previously accepted lines

@@ -1,7 +1,5 @@
--- ~/.config/nvim/init.lua 
 -- NEOVIM CONFIGURATION
---
--- new machine setup:
+-- Installation Instructions:
 -- 
 -- 1. Create the config directory:
 --    mkdir -p ~/.config/nvim
@@ -17,6 +15,7 @@
 --    nvim
 --    (Wait for the lazy.nvim popup to finish installing plugins)
 --
+-- 
 -- 5. Restart Neovim and you're ready to go!
 --
 -- KEY MAPPINGS:
@@ -311,6 +310,103 @@ require("lazy").setup({
     dependencies = { "nvim-tree/nvim-web-devicons" },
     opts = {},
   },
+  -- Git signs in gutter (like VSCode)
+  {
+    'lewis6991/gitsigns.nvim',
+    config = function()
+      require('gitsigns').setup({
+        signs = {
+          add          = { text = '│' },
+          change       = { text = '│' },
+          delete       = { text = '_' },
+          topdelete    = { text = '‾' },
+          changedelete = { text = '~' },
+          untracked    = { text = '┆' },
+        },
+        signcolumn = true,  -- Toggle with `:Gitsigns toggle_signs`
+        numhl      = false, -- Toggle with `:Gitsigns toggle_numhl`
+        linehl     = false, -- Toggle with `:Gitsigns toggle_linehl`
+        word_diff  = false, -- Toggle with `:Gitsigns toggle_word_diff`
+        current_line_blame = false, -- Toggle with `:Gitsigns toggle_current_line_blame`
+        current_line_blame_opts = {
+          virt_text = true,
+          virt_text_pos = 'eol', -- 'eol' | 'overlay' | 'right_align'
+          delay = 1000,
+        },
+        on_attach = function(bufnr)
+          local gs = package.loaded.gitsigns
+
+          local function map(mode, l, r, opts)
+            opts = opts or {}
+            opts.buffer = bufnr
+            vim.keymap.set(mode, l, r, opts)
+          end
+
+          -- Navigation
+          map('n', ']c', function()
+            if vim.wo.diff then return ']c' end
+            vim.schedule(function() gs.next_hunk() end)
+            return '<Ignore>'
+          end, {expr=true, desc = 'Next git hunk'})
+
+          map('n', '[c', function()
+            if vim.wo.diff then return '[c' end
+            vim.schedule(function() gs.prev_hunk() end)
+            return '<Ignore>'
+          end, {expr=true, desc = 'Previous git hunk'})
+
+          -- Actions
+          map('n', '<leader>hs', gs.stage_hunk, { desc = 'Stage hunk' })
+          map('n', '<leader>hr', gs.reset_hunk, { desc = 'Reset hunk' })
+          map('v', '<leader>hs', function() gs.stage_hunk {vim.fn.line('.'), vim.fn.line('v')} end, { desc = 'Stage hunk' })
+          map('v', '<leader>hr', function() gs.reset_hunk {vim.fn.line('.'), vim.fn.line('v')} end, { desc = 'Reset hunk' })
+          map('n', '<leader>hS', gs.stage_buffer, { desc = 'Stage buffer' })
+          map('n', '<leader>hu', gs.undo_stage_hunk, { desc = 'Undo stage hunk' })
+          map('n', '<leader>hR', gs.reset_buffer, { desc = 'Reset buffer' })
+          map('n', '<leader>hp', gs.preview_hunk, { desc = 'Preview hunk' })
+          map('n', '<leader>hb', function() gs.blame_line{full=true} end, { desc = 'Blame line' })
+          -- map('n', '<leader>tb', gs.toggle_current_line_blame, { desc = 'Toggle line blame' })
+          map('n', '<leader>hd', gs.diffthis, { desc = 'Diff this' })
+          map('n', '<leader>hD', function() gs.diffthis('~') end, { desc = 'Diff this ~' })
+          -- map('n', '<leader>td', gs.toggle_deleted, { desc = 'Toggle deleted' })
+
+          -- Text object
+          map({'o', 'x'}, 'ih', ':<C-U>Gitsigns select_hunk<CR>', { desc = 'Select hunk' })
+        end
+      })
+    end
+  },
+  -- Scrollbar with git signs and diagnostics
+  {
+    'lewis6991/satellite.nvim',
+    config = function()
+      require('satellite').setup({
+        current_only = false,
+        winblend = 50,
+        zindex = 40,
+        excluded_filetypes = {},
+        width = 2,
+        handlers = {
+          cursor = {
+            enable = true,
+          },
+          search = {
+            enable = true,
+          },
+          diagnostic = {
+            enable = true,
+          },
+          gitsigns = {
+            enable = true,
+          },
+          marks = {
+            enable = true,
+            show_builtins = false,
+          },
+        },
+      })
+    end,
+  },
 })
 
 -- Basic settings
@@ -380,7 +476,7 @@ vim.keymap.set('v', '<leader>g', function()
   selected_text = vim.fn.escape(selected_text, [[\/]])
   live_grep_with_cache(selected_text)
 end, { desc = 'Live grep selected text' })
-vim.keymap.set('n', '<leader>b', ':Telescope buffers<CR>', { desc = 'Buffers' })
+vim.keymap.set('n', '<leader>b', ':Telescope buffers sort_mru=true sort_lastused=true<CR>', { desc = 'Buffers (recent first)' })
 vim.keymap.set('n', '<leader>r', ':Telescope oldfiles<CR>', { desc = 'Recent files' })
 vim.keymap.set('n', '<leader>s', ':Telescope lsp_document_symbols<CR>', { desc = 'Document symbols' })
 vim.keymap.set('n', '<leader>d', ':Telescope diagnostics<CR>', { desc = 'Diagnostics' })
@@ -443,6 +539,8 @@ end
 
 -- Add keymap for closing buffers
 vim.keymap.set('n', '<leader>w', close_buffer, { desc = 'Close current buffer' })
+-- Jump to alternate (last active) buffer
+vim.keymap.set('n', '<leader><tab>', '<C-^>', { desc = 'Jump to last buffer' })
 
 -- Additional useful settings
 vim.opt.ignorecase = true     -- Case insensitive search
@@ -466,6 +564,16 @@ vim.api.nvim_create_autocmd("FileChangedShellPost", {
   pattern = "*",
   callback = function()
     vim.notify("File changed on disk. Buffer reloaded.", vim.log.levels.WARN)
+  end,
+})
+
+-- Remove trailing whitespace on save
+vim.api.nvim_create_autocmd("BufWritePre", {
+  pattern = "*",
+  callback = function()
+    local save_cursor = vim.fn.getpos(".")
+    vim.cmd([[%s/\s\+$//e]])
+    vim.fn.setpos(".", save_cursor)
   end,
 })
 
