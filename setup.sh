@@ -308,7 +308,7 @@ main() {
     install_neovim
     install_nvim_dependencies
     install_node
-    install_nvm
+    #install_nvm
 
     # Create directories and copy configs
     create_directories
