@@ -317,6 +317,8 @@ main() {
     # Set default shell
     set_default_shell
 
+    git config --global core.editor "nvim"
+
     print_success "Setup complete!"
     print_status "Next steps:"
     echo "  1. Restart your terminal or run: source ~/.zshrc"
