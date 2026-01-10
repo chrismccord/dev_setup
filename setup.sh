@@ -90,12 +90,22 @@ install_tmux() {
         print_status "Installing tmux..."
         if [[ "$OS" == "macos" ]]; then
             brew install tmux
-            brew install fzf
         elif [[ "$OS" == "linux" ]]; then
-            sudo apt install -y tmux fzf
+            sudo apt install -y tmux
         fi
     else
         print_success "tmux already installed"
+    fi
+
+    if ! command_exists fzf; then
+        print_status "Installing fzf..."
+        if [[ "$OS" == "macos" ]]; then
+            brew install fzf
+        elif [[ "$OS" == "linux" ]]; then
+            sudo apt install -y fzf
+        fi
+    else
+        print_success "fzf already installed"
     fi
 }
 
