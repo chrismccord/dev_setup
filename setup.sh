@@ -8,6 +8,13 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+ELIXIR_VERSION="1.19.5"
+OTP_VERSION="28.1"
+OTP_MAJOR_VERSION="${OTP_VERSION%%.*}"
+
+
+tyank() { tmux load-buffer -w -; }
+
 # Function to print colored output
 print_status() {
     echo -e "${BLUE}[INFO]${NC} $1"
@@ -199,6 +206,87 @@ install_node() {
     fi
 }
 
+# Configure Elixir installed via https://elixir-lang.org/install.sh
+configure_elixir_path() {
+    local installs_dir="$HOME/.elixir-install/installs"
+    local otp_bin="$installs_dir/otp/$OTP_VERSION/bin"
+    local elixir_bin="$installs_dir/elixir/${ELIXIR_VERSION}-otp-${OTP_MAJOR_VERSION}/bin"
+
+    export PATH="$otp_bin:$PATH"
+    export PATH="$elixir_bin:$PATH"
+
+    local zsh_paths="$HOME/.zsh/paths"
+    local begin_marker="# >>> dev_setup elixir >>>"
+    local end_marker="# <<< dev_setup elixir <<<"
+    local tmp_file
+
+    mkdir -p "$(dirname "$zsh_paths")"
+    touch "$zsh_paths"
+    tmp_file="$(mktemp)"
+
+    awk -v begin_marker="$begin_marker" -v end_marker="$end_marker" '
+        $0 == begin_marker { skip = 1; next }
+        $0 == end_marker { skip = 0; next }
+        !skip { print }
+    ' "$zsh_paths" > "$tmp_file"
+
+    {
+        printf "\n%s\n" "$begin_marker"
+        printf 'elixir_installs_dir="$HOME/.elixir-install/installs"\n'
+        printf 'elixir_otp_bin="$elixir_installs_dir/otp/%s/bin"\n' "$OTP_VERSION"
+        printf 'elixir_bin="$elixir_installs_dir/elixir/%s-otp-%s/bin"\n' "$ELIXIR_VERSION" "$OTP_MAJOR_VERSION"
+        printf '\n'
+        printf 'case ":$PATH:" in\n'
+        printf '    *":$elixir_otp_bin:"*) ;;\n'
+        printf '    *) export PATH="$elixir_otp_bin:$PATH" ;;\n'
+        printf 'esac\n'
+        printf '\n'
+        printf 'case ":$PATH:" in\n'
+        printf '    *":$elixir_bin:"*) ;;\n'
+        printf '    *) export PATH="$elixir_bin:$PATH" ;;\n'
+        printf 'esac\n'
+        printf "%s\n" "$end_marker"
+    } >> "$tmp_file"
+
+    mv "$tmp_file" "$zsh_paths"
+    print_success "Configured Elixir PATH in ~/.zsh/paths"
+}
+
+# Install Elixir if not already installed
+install_elixir() {
+    local elixir_bin="$HOME/.elixir-install/installs/elixir/${ELIXIR_VERSION}-otp-${OTP_MAJOR_VERSION}/bin/elixir"
+
+    if command_exists elixir; then
+        print_success "Elixir already installed"
+        return
+    fi
+
+    if [[ -x "$elixir_bin" ]]; then
+        print_status "Elixir $ELIXIR_VERSION already installed; configuring PATH..."
+        configure_elixir_path
+        return
+    fi
+
+    print_status "Installing Elixir $ELIXIR_VERSION with OTP $OTP_VERSION..."
+
+    if [[ "$OS" == "macos" || "$OS" == "linux" ]]; then
+        mkdir -p "$HOME/.elixir-install"
+        (
+            cd "$HOME/.elixir-install"
+            curl -fsSO https://elixir-lang.org/install.sh
+            sh install.sh "elixir@$ELIXIR_VERSION" "otp@$OTP_VERSION"
+        )
+
+        configure_elixir_path
+
+        if command_exists elixir; then
+            print_success "Elixir $ELIXIR_VERSION installed"
+        else
+            print_warning "Elixir installed, but elixir is not available in PATH"
+        fi
+    fi
+}
+
 # Install NVM for Node version management
 install_nvm() {
     if [[ ! -d "$HOME/.nvm" ]]; then
@@ -226,6 +314,7 @@ create_directories() {
     touch "$HOME/.zsh/env"
     touch "$HOME/.zsh/config"
     touch "$HOME/.zsh/aliases"
+    echo 'alias tailscale="/Applications/Tailscale.app/Contents/MacOS/Tailscale"' >> "$HOME/.zsh/aliases"
     touch "$HOME/.zsh/completions"
     touch "$HOME/.zsh/paths"
     touch "$HOME/.zsh/functions"
@@ -319,6 +408,7 @@ main() {
     install_neovim
     install_nvim_dependencies
     install_node
+    install_elixir
     #install_nvm
 
     # Create directories and copy configs
